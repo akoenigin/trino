@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRINO</title>
+<style>
+:root{
+  --rot:#d6332c;
+  --blau:#1c6fc0;
+  --gruen:#3d9a45;
+  --gelb:#eda718;
+  --tisch1:#1f8f63;
+  --tisch2:#0c4630;
+  --tafel:#fdfaf2;
+  --tinte:#12263a;
+
+  /* Grundmass, skaliert im Querformat mit und laeuft nie aus dem Rahmen */
+  --kb: min(5.6vw, 9.4vh);          /* Kartenbreite */
+  --kh: calc(var(--kb) * 1.45);     /* Kartenhoehe */
+  --gap: min(1.6vw, 2.6vh);
+  --t1: min(2.3vw, 3.6vh);          /* Titel */
+  --t2: min(1.5vw, 2.5vh);          /* Text */
+  --t3: min(1.2vw, 2vh);            /* klein */
+  --tst: min(2vw, 3.2vh);           /* Stellenwerte H Z E */
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{
+  font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  background:radial-gradient(ellipse at 50% 12%, var(--tisch1), var(--tisch2) 74%);
+  color:#fff;
+  -webkit-tap-highlight-color:transparent;
+}
+#app{height:100%;display:flex;flex-direction:column;justify-content:center;
+  gap:min(1vh,10px);padding:min(1.6vh,14px) min(2vw,26px)}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:var(--gap)}
+h1{margin:0;font-size:var(--t1);font-style:italic;letter-spacing:.12em;color:var(--gelb);
+   text-shadow:2px 2px 0 rgba(0,0,0,.4), 0 0 3px rgba(255,255,255,.4)}
+button{font-family:inherit;font-weight:bold;border:0;cursor:pointer;border-radius:999px;
+  background:rgba(255,255,255,.9);color:var(--tinte);box-shadow:0 3px 0 rgba(0,0,0,.3);
+  padding:.6em 1.3em;font-size:var(--t3)}
+button:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.3)}
+button:focus-visible{outline:3px solid #ffe680;outline-offset:2px}
+
+#msg{text-align:center;font-size:var(--t2);font-weight:bold;min-height:1.5em;
+  text-shadow:1px 1px 0 rgba(0,0,0,.35)}
+
+.board{flex:0 0 auto;display:grid;grid-template-columns:1fr auto 1fr;
+  gap:var(--gap);align-items:start}
+
+.player{background:rgba(0,0,0,.18);border-radius:min(1.4vw,18px);padding:var(--gap);
+  border:3px solid transparent;transition:border-color .2s, background .2s}
+.player.active{border-color:#ffe680;background:rgba(0,0,0,.32)}
+.kopf{display:flex;align-items:center;justify-content:space-between;gap:var(--gap);
+  margin-bottom:min(1vh,10px)}
+.pname{font-size:var(--t2);font-weight:bold;padding:.2em .5em;border-radius:8px;
+  background:rgba(255,255,255,.14);min-width:5em}
+.pname:focus{outline:2px solid #ffe680}
+
+.punktefeld{display:flex;align-items:center;gap:.4em;background:rgba(255,255,255,.14);
+  border-radius:999px;padding:.2em .3em}
+.punktefeld .zaehler{font-size:var(--t2);font-weight:bold;min-width:2.6em;text-align:center}
+.punktefeld .zaehler b{font-size:1.5em}
+.pbtn{width:1.9em;height:1.9em;padding:0;font-size:var(--t2);line-height:1;
+  display:grid;place-items:center;box-shadow:0 2px 0 rgba(0,0,0,.3)}
+
+.tafel{background:var(--tafel);color:var(--tinte);border-radius:min(1vw,12px);overflow:hidden;
+  box-shadow:0 6px 14px rgba(0,0,0,.3)}
+.tafel .kopfzeile{display:grid;grid-template-columns:repeat(3,1fr);background:var(--tinte)}
+.tafel .kopfzeile span{text-align:center;padding:.22em 0;font-size:var(--tst);font-weight:bold;
+  letter-spacing:.06em;color:#fff}
+.tafel .kopfzeile span+span{border-left:2px solid rgba(255,255,255,.4)}
+.felder{display:grid;grid-template-columns:repeat(3,1fr)}
+.feld{display:grid;place-items:center;padding:min(.9vh,9px);min-height:calc(var(--kh) + 12px)}
+.feld+.feld{border-left:2px dashed #c9c2ae}
+.feld.leer::after{content:"";width:var(--kb);height:var(--kh);
+  border:3px dashed #c9c2ae;border-radius:min(1vw,12px)}
+.feld.ziel{background:#fff5c9;cursor:pointer}
+.feld.ziel::after{border-color:#e0a800}
+
+.zahl{margin-top:min(1vh,8px);text-align:center;font-weight:bold;font-style:italic;
+  font-size:calc(var(--kb) * .62);letter-spacing:.1em;min-height:1.1em;
+  text-shadow:2px 2px 0 rgba(0,0,0,.35)}
+
+.hand{display:flex;justify-content:center;gap:min(.8vw,10px);min-height:var(--kh);
+  padding-top:min(.8vh,6px)}
+.platzhalter{width:var(--kb);height:var(--kh);border-radius:min(1vw,12px);
+  border:3px dashed rgba(255,255,255,.3)}
+
+.mitte{display:flex;flex-direction:column;align-items:center;gap:min(1.4vh,12px);
+  padding-top:calc(var(--kh) * .35)}
+#stapel{position:relative;cursor:pointer;filter:drop-shadow(0 8px 12px rgba(0,0,0,.45))}
+#stapel.aus{cursor:default;opacity:.45}
+#stapel .lage{position:absolute;top:0;left:0}
+#stapel .lage:nth-child(1){transform:translate(-5px,-5px) rotate(-4deg)}
+#stapel .lage:nth-child(2){transform:translate(4px,3px) rotate(3deg)}
+#stapel.bereit{animation:puls 1.6s ease-in-out infinite}
+@keyframes puls{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+#restanzeige{font-size:var(--t3);opacity:.85;text-align:center}
+
+.karte{width:var(--kb);height:var(--kh);border-radius:min(1vw,12px);
+  border:max(3px,.25vw) solid #fff;position:relative;display:grid;place-items:center;
+  overflow:hidden;box-shadow:0 4px 8px rgba(0,0,0,.35);user-select:none}
+.karte.rot{background:var(--rot)} .karte.blau{background:var(--blau)}
+.karte.gruen{background:var(--gruen)} .karte.gelb{background:var(--gelb)}
+.karte .oval{position:absolute;width:80%;height:112%;background:#fff;border-radius:50%;
+  transform:rotate(-32deg)}
+.karte .gross{position:relative;font-size:calc(var(--kb) * .6);font-weight:bold;font-style:italic}
+.karte.rot .gross{color:var(--rot)} .karte.blau .gross{color:var(--blau)}
+.karte.gruen .gross{color:var(--gruen)} .karte.gelb .gross{color:var(--gelb)}
+.karte .klein{position:absolute;font-size:calc(var(--kb) * .2);font-weight:bold;
+  font-style:italic;color:#fff}
+.karte .klein.ol{top:3%;left:7%} .karte .klein.ur{bottom:3%;right:7%;transform:rotate(180deg)}
+
+.karte.ruecken{background:#16202c}
+.karte.ruecken .oval{background:#16202c;border:max(2px,.18vw) solid #fff;width:82%;height:110%}
+.karte.ruecken .logo{position:relative;transform:rotate(-32deg);font-weight:bold;font-style:italic;
+  font-size:calc(var(--kb) * .235);letter-spacing:.04em;color:var(--gelb);
+  text-shadow:0 0 2px #fff, 1px 1px 0 #a8720a}
+
+.karte.klickbar{cursor:pointer;transition:transform .12s}
+.karte.klickbar:hover{transform:translateY(-6px)}
+.karte.gewaehlt{transform:translateY(-12px);box-shadow:0 0 0 4px #ffe680, 0 8px 14px rgba(0,0,0,.45)}
+.karte.neu{animation:rein .28s ease-out}
+@keyframes rein{from{transform:translate(0,-40px) scale(.8) rotate(-8deg);opacity:0}}
+
+.unten{display:flex;justify-content:center;gap:var(--gap);min-height:2.6em}
+.gross-btn{background:#ffe680;font-size:var(--t2);padding:.6em 1.8em}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <button id="neuBtn">Neues Spiel</button>
+    <h1>TRINO</h1>
+    <div id="restanzeige">Noch <span id="rest">18</span> Karten</div>
+  </header>
+
+  <div id="msg"></div>
+
+  <div class="board">
+
+    <section class="player" id="pA">
+      <div class="kopf">
+        <div class="pname" id="nameA" contenteditable="true" spellcheck="false">Spieler 1</div>
+        <div class="punktefeld">
+          <button class="pbtn" data-minus="A" aria-label="Punkt abziehen">−</button>
+          <div class="zaehler">Punkte <b id="punkteA">0</b></div>
+          <button class="pbtn" data-plus="A" aria-label="Punkt dazu">+</button>
+        </div>
+      </div>
+      <div class="tafel">
+        <div class="kopfzeile"><span>H</span><span>Z</span><span>E</span></div>
+        <div class="felder">
+          <div class="feld" id="feldAH"></div>
+          <div class="feld" id="feldAZ"></div>
+          <div class="feld" id="feldAE"></div>
+        </div>
+      </div>
+      <div class="zahl" id="zahlA"></div>
+      <div class="hand" id="handA"></div>
+    </section>
+
+    <div class="mitte">
+      <div id="stapel"></div>
+    </div>
+
+    <section class="player" id="pB">
+      <div class="kopf">
+        <div class="pname" id="nameB" contenteditable="true" spellcheck="false">Spieler 2</div>
+        <div class="punktefeld">
+          <button class="pbtn" data-minus="B" aria-label="Punkt abziehen">−</button>
+          <div class="zaehler">Punkte <b id="punkteB">0</b></div>
+          <button class="pbtn" data-plus="B" aria-label="Punkt dazu">+</button>
+        </div>
+      </div>
+      <div class="tafel">
+        <div class="kopfzeile"><span>H</span><span>Z</span><span>E</span></div>
+        <div class="felder">
+          <div class="feld" id="feldBH"></div>
+          <div class="feld" id="feldBZ"></div>
+          <div class="feld" id="feldBE"></div>
+        </div>
+      </div>
+      <div class="zahl" id="zahlB"></div>
+      <div class="hand" id="handB"></div>
+    </section>
+
+  </div>
+
+  <div class="unten">
+    <button id="fertigBtn" class="gross-btn" style="display:none">Fertig</button>
+    <button id="weiterBtn" class="gross-btn" style="display:none">Neue Runde</button>
+  </div>
+</div>
+
+<script>
+const q = s => document.querySelector(s);
+const FARBEN = ['rot','blau','gruen','gelb'];
+const STELLEN = ['H','Z','E'];
+let s;
+
+function mischen(a){
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function neuesDeck(){
+  const d=[];let n=0;
+  for(let v=1;v<=9;v++){
+    const f=mischen(FARBEN.slice()).slice(0,2);   /* jede Zahl zweimal, in zwei Farben */
+    for(let k=0;k<2;k++) d.push({v:v,f:f[k],id:'k'+(n++)});
+  }
+  return mischen(d);
+}
+function neuesSpiel(){
+  s={deck:neuesDeck(),ablage:[],punkte:{A:0,B:0},start:'A',akt:'A',phase:'ziehen',
+     hand:{A:[],B:[]},tafel:{A:{H:null,Z:null,E:null},B:{H:null,Z:null,E:null}},
+     gewaehlt:null};
+  zeichnen();
+}
+function name(p){ return q('#name'+p).textContent.trim() || (p==='A'?'Spieler 1':'Spieler 2'); }
+function darfLegen(p){ return s.phase==='legen' && s.akt===p; }
+function voll(p){ return STELLEN.every(k=>s.tafel[p][k]); }
+function zahlVon(p){ return voll(p) ? STELLEN.map(k=>s.tafel[p][k].v).join('') : ''; }
+
+function karteEl(k){
+  const el=document.createElement('div');
+  el.className='karte '+k.f;
+  el.innerHTML='<div class="oval"></div><div class="gross">'+k.v+'</div>'+
+               '<div class="klein ol">'+k.v+'</div><div class="klein ur">'+k.v+'</div>';
+  return el;
+}
+function rueckenEl(){
+  const el=document.createElement('div');
+  el.className='karte ruecken';
+  el.innerHTML='<div class="oval"></div><div class="logo">TRINO</div>';
+  return el;
+}
+
+function ziehen(){
+  if(s.phase!=='ziehen') return;
+  const p=s.akt;
+  if(s.hand[p].length>=3) return;
+  if(s.deck.length===0){ s.deck=mischen(s.ablage); s.ablage=[]; }
+  const k=s.deck.pop(); k.neu=true;
+  s.hand[p].push(k);
+  if(s.hand[p].length===3) s.phase='legen';
+  zeichnen();
+}
+function legen(p,stelle){
+  if(!darfLegen(p) || s.gewaehlt===null || s.tafel[p][stelle]) return;
+  const i=s.hand[p].findIndex(k=>k.id===s.gewaehlt);
+  if(i<0) return;
+  s.tafel[p][stelle]=s.hand[p].splice(i,1)[0];
+  s.gewaehlt=null;
+  zeichnen();
+}
+function zurueck(p,stelle){
+  if(!darfLegen(p) || !s.tafel[p][stelle]) return;
+  s.hand[p].push(s.tafel[p][stelle]);
+  s.tafel[p][stelle]=null;
+  zeichnen();
+}
+function fertig(){
+  const andere = s.akt==='A' ? 'B' : 'A';
+  if(!voll(andere)){ s.akt=andere; s.phase='ziehen'; s.gewaehlt=null; }
+  else { s.phase='ergebnis'; }
+  zeichnen();
+}
+function neueRunde(){
+  ['A','B'].forEach(p=>{
+    STELLEN.forEach(k=>{ if(s.tafel[p][k]){ s.ablage.push(s.tafel[p][k]); s.tafel[p][k]=null; } });
+  });
+  s.start = s.start==='A' ? 'B' : 'A';
+  s.akt=s.start; s.phase='ziehen'; s.gewaehlt=null;
+  zeichnen();
+}
+function punkt(p,d){
+  s.punkte[p]=Math.max(0, s.punkte[p]+d);
+  zeichnen();
+}
+
+function meldung(){
+  if(s.phase==='ziehen'){
+    const fehlt=3-s.hand[s.akt].length;
+    return name(s.akt)+' ist dran. Tippe noch '+fehlt+' mal auf den Stapel.';
+  }
+  if(s.phase==='legen'){
+    if(voll(s.akt)) return name(s.akt)+', deine Zahl steht. Tippe auf Fertig oder ändere noch etwas.';
+    return name(s.akt)+', lege deine Karten so ab, dass eine möglichst große Zahl entsteht.';
+  }
+  if(s.phase==='ergebnis') return 'Beide Zahlen liegen. Vergleicht sie und setzt die Punkte.';
+  return '';
+}
+
+function zeichnen(){
+  q('#rest').textContent=s.deck.length;
+  q('#msg').textContent=meldung();
+
+  const st=q('#stapel');
+  st.innerHTML='';
+  const l1=rueckenEl(); l1.className+=' lage';
+  const l2=rueckenEl(); l2.className+=' lage';
+  st.appendChild(l1); st.appendChild(l2); st.appendChild(rueckenEl());
+  st.classList.toggle('bereit', s.phase==='ziehen');
+  st.classList.toggle('aus', s.phase!=='ziehen');
+
+  ['A','B'].forEach(p=>{
+    q('#punkte'+p).textContent=s.punkte[p];
+    q('#p'+p).classList.toggle('active', s.akt===p && (s.phase==='ziehen'||s.phase==='legen'));
+
+    STELLEN.forEach(k=>{
+      const feld=q('#feld'+p+k);
+      feld.innerHTML=''; feld.onclick=null;
+      const karte=s.tafel[p][k];
+      if(karte){
+        feld.classList.remove('leer','ziel');
+        const el=karteEl(karte);
+        if(darfLegen(p)){ el.classList.add('klickbar'); feld.onclick=()=>zurueck(p,k); }
+        feld.appendChild(el);
+      } else {
+        feld.classList.add('leer');
+        const ziel = darfLegen(p) && s.gewaehlt!==null;
+        feld.classList.toggle('ziel', ziel);
+        if(ziel) feld.onclick=()=>legen(p,k);
+      }
+    });
+
+    q('#zahl'+p).textContent=zahlVon(p);
+
+    const hand=q('#hand'+p);
+    hand.innerHTML='';
+    s.hand[p].forEach(k=>{
+      const el=karteEl(k);
+      if(k.neu){ el.classList.add('neu'); k.neu=false; }
+      if(darfLegen(p)){
+        el.classList.add('klickbar');
+        if(s.gewaehlt===k.id) el.classList.add('gewaehlt');
+        el.onclick=()=>{ s.gewaehlt = s.gewaehlt===k.id ? null : k.id; zeichnen(); };
+      }
+      hand.appendChild(el);
+    });
+    const belegt=STELLEN.filter(k=>s.tafel[p][k]).length;
+    for(let i=s.hand[p].length+belegt; i<3; i++){
+      const ph=document.createElement('div'); ph.className='platzhalter'; hand.appendChild(ph);
+    }
+  });
+
+  q('#fertigBtn').style.display = (s.phase==='legen' && voll(s.akt)) ? 'block' : 'none';
+  q('#weiterBtn').style.display = (s.phase==='ergebnis') ? 'block' : 'none';
+}
+
+q('#stapel').addEventListener('click',ziehen);
+q('#fertigBtn').addEventListener('click',fertig);
+q('#weiterBtn').addEventListener('click',neueRunde);
+q('#neuBtn').addEventListener('click',neuesSpiel);
+document.querySelectorAll('.pbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    if(b.dataset.plus) punkt(b.dataset.plus, 1);
+    else punkt(b.dataset.minus, -1);
+  });
+});
+['nameA','nameB'].forEach(id=>{
+  q('#'+id).addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();e.target.blur();} });
+  q('#'+id).addEventListener('blur',zeichnen);
+});
+
+neuesSpiel();
+</script>
+</body>
+</html>
